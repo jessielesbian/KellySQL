@@ -12,27 +12,30 @@ namespace KellySQL.Core.GlobalTaskQueue
 	public static class GlobalTaskQueue
 	{
 		private static readonly ConcurrentQueue<Transaction> queue = new ConcurrentQueue<Transaction>();
-		private static readonly AutoResetEvent autoResetEvent = new AutoResetEvent(false);
+		private static readonly Thread thr;
 		static GlobalTaskQueue()
 		{
-			new Thread(TransactionSequencerThread)
+			thr = new Thread(TransactionSequencerThread)
 			{
 				Name = "KellySQL Transaction Sequencer Thread"
-			}.Start();
+			};
+			thr.Start();
 		}
 		public static void PushTransaction(Transaction tx)
 		{
 			queue.Enqueue(tx);
-			autoResetEvent.Set();
 		}
 		public static object ExecuteTransactionSYNC(Transaction tx)
 		{
 			queue.Enqueue(tx);
-			autoResetEvent.Set();
 			Exception e = tx.Error;
 			if(e == null)
 			{
 				return tx.Result;
+			}
+			else if(e is SequencerKiller)
+			{
+				return null;
 			}
 			else
 			{
@@ -41,17 +44,35 @@ namespace KellySQL.Core.GlobalTaskQueue
 		}
 		private static void TransactionSequencerThread()
 		{
-			while(true)
+			try
 			{
-				if(queue.TryDequeue(out Transaction pending))
+				while(true)
 				{
-					pending.Execute();
+					if(queue.TryDequeue(out Transaction pending))
+					{
+						pending.Execute();
+					}
+					else
+					{
+						Thread.Sleep(1);
+					}
 				}
-				else
-				{
-					autoResetEvent.WaitOne();
-				}
+			} catch(SequencerKiller)
+			{
+				return;
 			}
+			
+		}
+		/// <summary>
+		/// Waits for all pending transactions to finish, and kill the sequencer.
+		/// Once the sequencer is killed, the're no way to restart it for now.
+		/// </summary>
+		public static void SafeKill()
+		{
+			ExecuteTransactionSYNC(new MethodTransaction(() =>
+			{
+				throw new SequencerKiller();
+			}));
 		}
 	}
 	public abstract class Transaction
@@ -88,6 +109,11 @@ namespace KellySQL.Core.GlobalTaskQueue
 				result = ExecuteIMPL();
 			} catch(Exception e){
 				error = e;
+				if(e is SequencerKiller)
+				{
+					completionWaiter.Set();
+					throw e;
+				}
 			}
 			completionWaiter.Set();
 		}
@@ -110,5 +136,8 @@ namespace KellySQL.Core.GlobalTaskQueue
 		{
 			return func.Invoke();
 		}
+	}
+	internal sealed class SequencerKiller : Exception {
+		
 	}
 }

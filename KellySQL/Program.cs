@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using KellySQL.Core.Databases;
+using KellySQL.Core.GlobalTaskQueue;
 
 namespace KellySQL.Testing
 {
@@ -28,7 +29,15 @@ namespace KellySQL.Testing
 			Console.WriteLine(rows[0][0]);
 			rows.Revert();
 			Console.WriteLine(rows[0][0]);
-
+			rows.BeginLight();
+			rows[0] = new MemoryRowIMPL
+			{
+				"Flying Lesbian"
+			};
+			Console.WriteLine(rows[0][0]);
+			rows.Commit();
+			Console.WriteLine(rows[0][0]);
+			GlobalTaskQueue.SafeKill();
 		}
 	}
 }
