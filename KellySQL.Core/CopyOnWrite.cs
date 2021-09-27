@@ -44,6 +44,17 @@ namespace KellySQL.Core.CopyOnWrite
 			throw new NotImplementedException();
 		}
 
+		public void ApplySlave(RowOrCollum slave) {
+			if(slave is ShadowCopySlaveArrayHeavy shadow)
+			{
+				ApplySlave(shadow);
+			}
+			else
+			{
+				ApplySlave((ShadowCopySlaveArrayLight) slave);
+			}
+		}
+
 		/// <summary>
 		/// Applies the changes made to the slave array to the master array
 		/// </summary>

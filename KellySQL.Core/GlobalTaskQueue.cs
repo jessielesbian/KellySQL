@@ -11,7 +11,7 @@ namespace KellySQL.Core.GlobalTaskQueue
 {
 	public static class GlobalTaskQueue
 	{
-		private static readonly ConcurrentQueue<Transaction> queue;
+		private static readonly ConcurrentQueue<Transaction> queue = new ConcurrentQueue<Transaction>();
 		private static readonly AutoResetEvent autoResetEvent = new AutoResetEvent(false);
 		static GlobalTaskQueue()
 		{
@@ -93,6 +93,11 @@ namespace KellySQL.Core.GlobalTaskQueue
 		}
 
 		protected abstract object ExecuteIMPL();
+
+		~Transaction()
+		{
+			completionWaiter.Dispose();
+		}
 	}
 	public sealed class MethodTransaction : Transaction
 	{
